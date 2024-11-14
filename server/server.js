@@ -14,30 +14,12 @@ app.use(cors({
     methods: ['GET', 'POST'],
 }));
 
-app.get("/recipeStream", (req, res) => {
+app.get("/recipe", async (req, res) => {
     const ingredients = req.query.ingredients;
     const mealType = req.query.mealType;
     const cuisine = req.query.cuisine;
     const cookingTime = req.query.cookingTime;
     const complexity = req.query.complexity;
-
-    res.setHeader("Content-Type", "text/event-stream");
-    res.setHeader("Cache-Control", "no-cache");
-    res.setHeader("Connection", "keep-alive");
-
-    const sendEvent = (chunk) => {
-        if (chunk && chunk.choices && chunk.choices[0].finish_reason === "stop") {
-            // Close the event stream
-            res.write(`data: ${JSON.stringify({ action: "close" })}\n\n`);
-        } else {
-            // Send a chunk of the response
-            const chunkResponse = {
-                action: "chunk",
-                chunk: chunk.text || chunk.response?.text || "",
-            };
-            res.write(`data: ${JSON.stringify(chunkResponse)}\n\n`);
-        }
-    };
 
     const prompt = [
         `Generate a recipe that incorporates the following details:`,
@@ -52,14 +34,18 @@ app.get("/recipeStream", (req, res) => {
     ];
 
     // Call Gemini API to generate recipe content
-    fetchGeminiCompletions(prompt.join(" "), sendEvent);
-
-    req.on("close", () => {
-        res.end(); // Close the response when the client disconnects
-    });
+    try {
+        const recipeText = await fetchGeminiCompletions(prompt.join(" "));
+        
+        // Send the entire recipe as a single response
+        res.json({ recipe: recipeText });
+    } catch (error) {
+        console.error("Error fetching Gemini completions:", error);
+        res.status(500).json({ recipe: 'Error generating recipe' }); // Send error message to the client
+    }
 });
 
-async function fetchGeminiCompletions(prompt, callback) {
+async function fetchGeminiCompletions(prompt) {
     // Initialize the Gemini API with API Key from environment variables
     const genAI = new GoogleGenerativeAI(process.env.API_KEY);
 
@@ -76,20 +62,16 @@ async function fetchGeminiCompletions(prompt, callback) {
         let recipeText = '';
 
         // Check if response.text is a function, and invoke it if true
-        console.log("response.text type:", typeof response.text);
         if (typeof response.text === 'function') {
-            recipeText = response.text(); // Await the function if it returns a promise
-            console.log("response.text result:", response.text());
+            recipeText = await response.text(); // Await the function if it returns a promise
         } else {
             recipeText = response.text || ''; // Otherwise, use the text directly
         }
 
-        // Call the callback to send the response back to the client
-        callback({ response: recipeText });
-
+        return recipeText;
     } catch (error) {
         console.error("Error fetching Gemini completions:", error);
-        callback({ response: 'Error generating recipe' }); // Send error message to the client
+        throw new Error('Error generating recipe');
     }
 }
 

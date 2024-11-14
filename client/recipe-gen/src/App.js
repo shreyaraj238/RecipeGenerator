@@ -1,5 +1,5 @@
 import './App.css';
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { useState, useEffect, useCallback } from "react"; // Import useCallback
 
 // Component for the Recipe Input Form
 const RecipeCard = ({ onSubmit }) => {
@@ -102,43 +102,28 @@ const RecipeCard = ({ onSubmit }) => {
 function App() {
   const [recipeData, setRecipeData] = useState(null);
   const [recipeText, setRecipeText] = useState("");
-  const eventSourceRef = useRef(null);
 
-  const initializeEventStream = useCallback(() => {
+  // Memoize the function using useCallback
+  const initializeRecipeGeneration = useCallback(async () => {
     const queryParams = new URLSearchParams(recipeData).toString();
-    const url = `http://localhost:3000/recipeStream?${queryParams}`;
+    const url = `http://localhost:3000/recipe?${queryParams}`;
 
-    eventSourceRef.current = new EventSource(url);
-    eventSourceRef.current.onmessage = (event) => {
-      const data = JSON.parse(event.data);
-
-      if (data.action === "close") {
-        closeEventStream();
-      } else if (data.action === "chunk") {
-        console.log("Appending chunk:", data.chunk); // Debugging line
-        setRecipeText((prev) => prev + data.chunk);
-      }
-    };
-
-    eventSourceRef.current.onerror = () => {
-      closeEventStream();
-    };
-  }, [recipeData]);
+    try {
+      const response = await fetch(url);
+      const data = await response.json();
+      setRecipeText(data.recipe); // Set the entire recipe text at once
+    } catch (error) {
+      console.error("Error fetching recipe:", error);
+      setRecipeText("Error generating recipe.");
+    }
+  }, [recipeData]); // Only recreate this function when recipeData changes
 
   useEffect(() => {
     if (recipeData) {
       setRecipeText(""); // Clear previous recipe text
-      closeEventStream();
-      initializeEventStream();
+      initializeRecipeGeneration();
     }
-  }, [recipeData, initializeEventStream]);
-
-  const closeEventStream = () => {
-    if (eventSourceRef.current) {
-      eventSourceRef.current.close();
-      eventSourceRef.current = null;
-    }
-  };
+  }, [recipeData, initializeRecipeGeneration]); // Now initializeRecipeGeneration is stable
 
   const onSubmit = (data) => {
     setRecipeData(data);
@@ -150,7 +135,7 @@ function App() {
       <div className="flex-1 border rounded-lg overflow-hidden shadow-md p-6">
         <h2 className="font-bold text-xl mb-4">Generated Recipe</h2>
         
-        {/* Display recipeText in pre tag */}
+        {/* Display recipeText */}
         <pre className="whitespace-pre-wrap text-gray-800">{recipeText}</pre>
       </div>
     </div>
