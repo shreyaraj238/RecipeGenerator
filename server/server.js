@@ -1,14 +1,19 @@
 const express = require("express");
 const cors = require("cors");
-const { Configuration, OpenAI } = require('openai');
 require('dotenv').config();
 
+// Integrate Gemini
+const { GoogleGenerativeAI } = require("@google/generative-ai");
 
 const app = express();
 const PORT = 3000;
 
 // Enable CORS for all routes
-app.use(cors());
+app.use(cors({
+    origin: 'http://localhost:3001', // Replace with the actual React app URL
+    methods: ['GET', 'POST'],
+}));
+
 app.get("/recipeStream", (req, res) => {
     const ingredients = req.query.ingredients;
     const mealType = req.query.mealType;
@@ -21,82 +26,70 @@ app.get("/recipeStream", (req, res) => {
     res.setHeader("Connection", "keep-alive");
 
     const sendEvent = (chunk) => {
-        let chunkResponse;
-        if (chunk.choices[0].finish_reason === "stop") {
+        if (chunk && chunk.choices && chunk.choices[0].finish_reason === "stop") {
+            // Close the event stream
             res.write(`data: ${JSON.stringify({ action: "close" })}\n\n`);
         } else {
-            if (
-                chunk.choices[0].delta.role &&
-                chunk.choices[0].delta.role === "assistant"
-            ) {
-                chunkResponse = {
-                    action: "start",
-                };
-            } else {
-                chunkResponse = {
-                    action: "chunk",
-                    chunk: chunk.choices[0].delta.content,
-                };
-            }
+            // Send a chunk of the response
+            const chunkResponse = {
+                action: "chunk",
+                chunk: chunk.text || chunk.response?.text || "",
+            };
             res.write(`data: ${JSON.stringify(chunkResponse)}\n\n`);
         }
-    }
+    };
 
-    const prompt = [];
-    prompt.push(`Generate a recipe that incorporates the following details:`);
-    prompt.push(`[Ingredients: ${ingredients}]`);
-    prompt.push(`[Meal Type: ${mealType}]`);
-    prompt.push(`[Cuisine Preference: ${cuisine}]`);
-    prompt.push(`[Cooking Time: ${cookingTime}]`);
-    prompt.push(`[Complexity: ${complexity}]`);
-
-    prompt.push(
-        "Please provide a detailed recipe, including steps for preparation and cooking."
-    );
-    prompt.push(
-        "The recipe should highlight the fresh and vibrant flavors of the ingredients."
-    );
-    prompt.push(
+    const prompt = [
+        `Generate a recipe that incorporates the following details:`,
+        `[Ingredients: ${ingredients}]`,
+        `[Meal Type: ${mealType}]`,
+        `[Cuisine Preference: ${cuisine}]`,
+        `[Cooking Time: ${cookingTime}]`,
+        `[Complexity: ${complexity}]`,
+        "Please provide a detailed recipe, including steps for preparation and cooking.",
+        "The recipe should highlight the fresh and vibrant flavors of the ingredients.",
         "Also give the recipe a suitable name in its local language based on cuisine preference."
-    );
-
-    const messages = [
-        {
-            role: "system",
-            content: prompt.join(" "),
-        },
     ];
 
-    fetchOpenAICompletionsStream(messages, sendEvent);
+    // Call Gemini API to generate recipe content
+    fetchGeminiCompletions(prompt.join(" "), sendEvent);
 
     req.on("close", () => {
-        res.end();
+        res.end(); // Close the response when the client disconnects
     });
 });
 
+async function fetchGeminiCompletions(prompt, callback) {
+    // Initialize the Gemini API with API Key from environment variables
+    const genAI = new GoogleGenerativeAI(process.env.API_KEY);
 
-async function fetchOpenAICompletionsStream(messages, callback) {
-    // Initialize OpenAI with the API key from the environment variables
-    const openai = new OpenAI({apiKey: "key"});
-    
-    
-    // Log the API key for debugging (consider removing this in production)
-    // console.log(process.env.OPENAI_API_KEY);
-    
-    const aiModel = "gpt-3.5-turbo";
+    // Select the correct model
+    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
     try {
-        const completion = await openai.chat.completions.create({
-            model: aiModel,
-            messages: messages,
-            stream: true,
-        });
+        // Generate content from the model based on the prompt
+        const result = await model.generateContent(prompt);
 
-        for await (const chunk of completion) {
-            callback(chunk);
+        console.log("Gemini Response:", result); // Log the response for debugging
+
+        const response = result.response; // Get the actual response
+        let recipeText = '';
+
+        // Check if response.text is a function, and invoke it if true
+        console.log("response.text type:", typeof response.text);
+        if (typeof response.text === 'function') {
+            recipeText = response.text(); // Await the function if it returns a promise
+            console.log("response.text result:", response.text());
+        } else {
+            recipeText = response.text || ''; // Otherwise, use the text directly
         }
+
+        // Call the callback to send the response back to the client
+        callback({ response: recipeText });
+
     } catch (error) {
-        console.error("Error fetching OpenAI completions:", error);
+        console.error("Error fetching Gemini completions:", error);
+        callback({ response: 'Error generating recipe' }); // Send error message to the client
     }
 }
 
