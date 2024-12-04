@@ -8,9 +8,8 @@ const { GoogleGenerativeAI } = require("@google/generative-ai");
 const app = express();
 const PORT = 3000;
 
-// Enable CORS for all routes
 app.use(cors({
-    origin: 'http://localhost:3001', // Replace with the actual React app URL
+    origin: 'http://localhost:3001', //React app URL
     methods: ['GET', 'POST'],
 }));
 
@@ -33,39 +32,36 @@ app.get("/recipe", async (req, res) => {
         "Also give the recipe a suitable name in its local language based on cuisine preference."
     ];
 
-    // Call Gemini API to generate recipe content
+    // Call Gemini API
     try {
         const recipeText = await fetchGeminiCompletions(prompt.join(" "));
         
-        // Send the entire recipe as a single response
         res.json({ recipe: recipeText });
     } catch (error) {
         console.error("Error fetching Gemini completions:", error);
-        res.status(500).json({ recipe: 'Error generating recipe' }); // Send error message to the client
+        res.status(500).json({ recipe: 'Error generating recipe' });
     }
 });
 
 async function fetchGeminiCompletions(prompt) {
-    // Initialize the Gemini API with API Key from environment variables
+    // Initialize the Gemini API with API Key- need to input personal API key in .env file
     const genAI = new GoogleGenerativeAI(process.env.API_KEY);
 
-    // Select the correct model
+    // Modify to include the correct model
     const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
     try {
-        // Generate content from the model based on the prompt
         const result = await model.generateContent(prompt);
 
-        console.log("Gemini Response:", result); // Log the response for debugging
+        console.log("Gemini Response:", result); 
 
-        const response = result.response; // Get the actual response
+        const response = result.response;
         let recipeText = '';
 
-        // Check if response.text is a function, and invoke it if true
         if (typeof response.text === 'function') {
-            recipeText = await response.text(); // Await the function if it returns a promise
+            recipeText = await response.text(); // Await the function to see if it returns a promise
         } else {
-            recipeText = response.text || ''; // Otherwise, use the text directly
+            recipeText = response.text || ''; 
         }
 
         return recipeText;

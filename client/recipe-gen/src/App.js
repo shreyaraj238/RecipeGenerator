@@ -1,7 +1,8 @@
 import './App.css';
-import React, { useState, useEffect, useCallback } from "react"; // Import useCallback
+import React, { useState, useEffect, useCallback } from "react";
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import { faUtensils, faScroll, faCarrot } from '@fortawesome/free-solid-svg-icons'; 
 
-// Component for the Recipe Input Form
 const RecipeCard = ({ onSubmit }) => {
   const [ingredients, setIngredients] = useState("");
   const [mealType, setMealType] = useState("");
@@ -15,9 +16,12 @@ const RecipeCard = ({ onSubmit }) => {
   };
 
   return (
-    <div className="w-[400px] border rounded-lg overflow-hidden shadow-md p-6">
-      <h2 className="font-bold text-xl mb-4">Recipe Generator</h2>
-      
+    <div className="w-[400px] border rounded-lg overflow-hidden shadow-md p-6 bg-white">
+      <div className="flex justify-center items-center mb-4">
+        <FontAwesomeIcon icon={faScroll} className="mr-3 text-xl" />
+        <h2 className="font-bold text-xl text-green-700">Recipe Generator Form</h2>
+      </div>
+
       {/* Ingredients Input */}
       <div className="mb-4">
         <label className="block text-gray-700 text-sm font-bold mb-2">Ingredients</label>
@@ -90,7 +94,7 @@ const RecipeCard = ({ onSubmit }) => {
 
       {/* Submit Button */}
       <button
-        className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded focus:outline-none mt-4"
+        className="bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded focus:outline-none mt-4 transition-all"
         onClick={handleSubmit}
       >
         Generate Recipe
@@ -103,7 +107,6 @@ function App() {
   const [recipeData, setRecipeData] = useState(null);
   const [recipeText, setRecipeText] = useState("");
 
-  // Memoize the function using useCallback
   const initializeRecipeGeneration = useCallback(async () => {
     const queryParams = new URLSearchParams(recipeData).toString();
     const url = `http://localhost:3000/recipe?${queryParams}`;
@@ -111,32 +114,65 @@ function App() {
     try {
       const response = await fetch(url);
       const data = await response.json();
-      setRecipeText(data.recipe); // Set the entire recipe text at once
+      const formattedRecipeText = formatRecipeWithCheckboxes(data.recipe);
+      setRecipeText(formattedRecipeText);
     } catch (error) {
       console.error("Error fetching recipe:", error);
       setRecipeText("Error generating recipe.");
     }
-  }, [recipeData]); // Only recreate this function when recipeData changes
+  }, [recipeData]);
 
   useEffect(() => {
     if (recipeData) {
-      setRecipeText(""); // Clear previous recipe text
+      setRecipeText("");
       initializeRecipeGeneration();
     }
-  }, [recipeData, initializeRecipeGeneration]); // Now initializeRecipeGeneration is stable
+  }, [recipeData, initializeRecipeGeneration]);
 
   const onSubmit = (data) => {
     setRecipeData(data);
   };
 
+  const formatRecipeWithCheckboxes = (recipeText) => {
+    // Extract ingredients section to include checkboxes for ingredient checklist
+    const ingredientsStart = recipeText.indexOf("**Ingredients:**");
+    const instructionsStart = recipeText.indexOf("**Instructions:**");
+    
+    if (ingredientsStart === -1 || instructionsStart === -1) {
+      return recipeText;
+    }
+
+    const ingredientsSection = recipeText.slice(ingredientsStart + 15, instructionsStart).trim();
+    const ingredientsList = ingredientsSection.split("\n*").map((ingredient, index) => {
+      return `<div><input type="checkbox" id="ingredient-${index}" /> <label for="ingredient-${index}">${ingredient.trim()}</label></div>`;
+    });
+
+    const beforeIngredients = recipeText.slice(0, ingredientsStart + 15);
+    const afterInstructions = recipeText.slice(instructionsStart);
+    return beforeIngredients + "\n" + ingredientsList.join("\n") + "\n" + afterInstructions;
+  };
+
   return (
-    <div className="App h-screen flex flex-col md:flex-row justify-center items-start gap-8 p-4">
-      <RecipeCard onSubmit={onSubmit} />
-      <div className="flex-1 border rounded-lg overflow-hidden shadow-md p-6">
-        <h2 className="font-bold text-xl mb-4">Generated Recipe</h2>
-        
-        {/* Display recipeText */}
-        <pre className="whitespace-pre-wrap text-gray-800">{recipeText}</pre>
+    <div className="App min-h-screen flex flex-col items-center justify-center bg-pattern bg-cover">
+      <header className="header-title">
+        <h1 className="text-4xl font-extrabold text-white">
+          <FontAwesomeIcon icon={faUtensils} className="mr-3" />
+          Recipe Generator
+        </h1>
+      </header>
+
+      <div className="flex flex-col md:flex-row justify-center items-start gap-8 mt-24">
+        <RecipeCard onSubmit={onSubmit} />
+        <div className="flex-1 border rounded-lg overflow-hidden shadow-md p-6 bg-white">
+          <div className="flex justify-center items-center mb-4">
+            <FontAwesomeIcon icon={faCarrot} className="mr-3 text-xl" />
+            <h2 className="font-bold text-xl text-green-700">Generated Recipe</h2>
+          </div>
+          <div
+            className="whitespace-pre-wrap text-gray-800"
+            dangerouslySetInnerHTML={{ __html: recipeText }}
+          />
+        </div>
       </div>
     </div>
   );

@@ -37,6 +37,27 @@
   color: #61dafb;
 }
 
+.bg-pattern {
+  /* Image for the background of the web app- found online on unspash*/
+  background-image: url('https://images.unsplash.com/photo-1504674900247-0877df9cc836?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=MnwzNjUyOXwwfDF8c2VhcmNofDZ8fGZvb2R8ZW58MHx8fHwxNjg3NjcyMjM2&ixlib=rb-1.2.1&q=80&w=1080');
+  background-size: cover;
+  background-position: center;
+}
+
+.header-title h1{
+  color: #2c6b2f; 
+  background-color: #d1e8d3; 
+  padding: 20px 0;
+  width: 100%; 
+  text-align: center;
+  font-size: 2.5rem;
+  font-family: 'Poppins', sans-serif; 
+  font-weight: 700;
+  position: absolute;
+  top: 0; 
+  left: 0;
+}
+
 @keyframes App-logo-spin {
   from {
     transform: rotate(0deg);
